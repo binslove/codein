@@ -1,0 +1,44 @@
+(function(){'use strict';
+const $=(s,r=document)=>r.querySelector(s),$$=(s,r=document)=>Array.from(r.querySelectorAll(s));
+const notices=[{id:1,title:'신입 부원 OT 안내',body:'이번 주 금요일 18:00에 OT 진행합니다. 장소는 추후 공지!',tag:'공지',date:'2026-01-10'},
+{id:2,title:'1월 스터디 모집',body:'클라우드/백엔드/알고리즘 스터디를 모집합니다. 관심 있는 분은 댓글!',tag:'모집',date:'2026-01-12'},
+{id:3,title:'장비 대여 규정 업데이트',body:'노트북/카메라 대여 규정이 갱신되었습니다. 운영진 공지를 확인하세요.',tag:'규정',date:'2026-01-15'},
+{id:4,title:'동아리 회비 안내',body:'회비 납부 기간: 1/10~1/20. 계좌는 운영진에게 문의하세요.',tag:'안내',date:'2026-01-10'},
+{id:5,title:'프로젝트 팀 빌딩',body:'1월 말까지 팀 구성을 완료합니다. 아이디어 공유 환영!',tag:'프로젝트',date:'2026-01-18'}];
+const events=[{title:'OT(신입 부원)',when:'2026-01-10 18:00',place:'강의실 A (예정)'},
+{title:'정기 세션',when:'2026-01-14 19:00',place:'동아리방'},
+{title:'스터디 킥오프',when:'2026-01-17 14:00',place:'온라인'}];
+const esc=s=>String(s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+const shuffle=a=>{a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a};
+const fmt=d=>{const y=d.getFullYear(),m=String(d.getMonth()+1).padStart(2,'0'),dd=String(d.getDate()).padStart(2,'0'),w=['일','월','화','수','목','금','토'][d.getDay()];return `${y}.${m}.${dd} (${w})`};
+const parseDT=s=>{const [dp,tp]=s.split(' ');const [y,m,d]=dp.split('-').map(Number);const [hh,mm]=tp.split(':').map(Number);return new Date(y,m-1,d,hh,mm,0,0)};
+function applyTheme(t){document.documentElement.setAttribute('data-theme',t);const i=$('#themeToggle .icon');if(i)i.textContent=t==='light'?'☀️':'🌙';try{localStorage.setItem('codein_theme',t)}catch(e){}}
+function initTheme(){let s=null;try{s=localStorage.getItem('codein_theme')}catch(e){}applyTheme(s==='light'?'light':'dark');const b=$('#themeToggle');if(b)b.addEventListener('click',()=>{const c=document.documentElement.getAttribute('data-theme')||'dark';applyTheme(c==='light'?'dark':'light')})}
+function initNav(){const b=$('#navToggle'),m=$('#navMenu');if(!b||!m)return;b.addEventListener('click',()=>{const o=m.classList.toggle('is-open');b.setAttribute('aria-expanded',String(o))});$$('#navMenu a').forEach(a=>a.addEventListener('click',()=>{m.classList.remove('is-open');b.setAttribute('aria-expanded','false')}))}
+function setYear(){const y=$('#yearText');if(y)y.textContent=String(new Date().getFullYear())}
+function nextEvent(){const now=new Date();return events.map(e=>({...e,dt:parseDT(e.when)})).filter(e=>e.dt>=now).sort((a,b)=>a.dt-b.dt)[0]||null}
+function noticeCard(n,compact){const el=document.createElement('article');el.className='card card--padded';el.innerHTML=`<div class="card__meta">${esc(n.date)} · <span class="tag">${esc(n.tag)}</span></div><h3 class="card__title">${esc(n.title)}</h3><div class="card__body">${esc(n.body)}</div><div class="card__footer"><span class="muted small">${compact?'비회원: 요약만':'상세(정적) 보기'}</span><a class="btn btn--outline" href="./notice.html#notice-${n.id}">${compact?'더보기':'링크'}</a></div>`;return el}
+function renderMiniCalendar(host){host.innerHTML='';['일','월','화','수','목','금','토'].forEach(d=>{const el=document.createElement('div');el.className='cal__dow';el.textContent=d;host.appendChild(el)});
+const now=new Date(),y=now.getFullYear(),m=now.getMonth();const first=new Date(y,m,1),last=new Date(y,m+1,0);const blank=first.getDay(),days=last.getDate();
+const eDays=new Set(events.map(e=>{const dt=parseDT(e.when);return (dt.getFullYear()===y&&dt.getMonth()===m)?dt.getDate():null}).filter(Boolean));
+for(let i=0;i<blank;i++){const c=document.createElement('div');c.className='cal__cell';c.innerHTML='<div class="cal__day muted"> </div>';host.appendChild(c)}
+for(let d=1;d<=days;d++){const c=document.createElement('div');c.className='cal__cell';const has=eDays.has(d);c.innerHTML=`<div class="cal__day">${d}${has?'<span class="cal__dot" aria-hidden="true"></span>':''}</div>`;host.appendChild(c)}
+}
+function renderHome(){const t=$('#todayText');if(t)t.textContent=fmt(new Date());const n=nextEvent();const ne=$('#nextEventText');if(ne)ne.textContent=n?n.title:'없음';
+const cnt=$('#noticeCountText');if(cnt)cnt.textContent=`${notices.length}건`;
+const wrap=$('#noticeCards');if(wrap){wrap.innerHTML='';shuffle(notices).slice(0,3).forEach(x=>wrap.appendChild(noticeCard(x,true)))}
+const r=$('#refreshBtn');if(r&&wrap){r.addEventListener('click',()=>{wrap.innerHTML='';shuffle(notices).slice(0,3).forEach(x=>wrap.appendChild(noticeCard(x,true)))})}}
+function renderNotice(){const list=$('#noticeList');if(!list)return;list.innerHTML='';notices.forEach(n=>{const c=noticeCard(n,false);c.id=`notice-${n.id}`;list.appendChild(c)});
+const hint=$('#noticeHint');if(hint)hint.textContent=`총 ${notices.length}건 (샘플)`;
+const s=$('#noticeSearch');if(s)s.addEventListener('input',()=>{const q=s.value.trim().toLowerCase();const f=notices.filter(n=>n.title.toLowerCase().includes(q)||n.body.toLowerCase().includes(q)||n.tag.toLowerCase().includes(q));
+list.innerHTML='';f.forEach(n=>{const c=noticeCard(n,false);c.id=`notice-${n.id}`;list.appendChild(c)});if(hint)hint.textContent=`검색 결과 ${f.length}건 (샘플)`})}
+function renderBoards(){const stub=$('#boardsStub');if(stub)stub.innerHTML=`<div class="card card--padded"><h3 class="card__title">게시판은 로그인 후 이용</h3><p class="muted">프로토타입 단계에서는 권한/글쓰기/댓글 기능을 연결하지 않았습니다.</p><ul class="bullets"><li>자유게시판 / Q&amp;A / 비밀게시판</li><li>권한: 회원 이상 (비회원은 목록만)</li><li>신고/블라인드: 추후</li></ul><a class="btn btn--primary" href="./mypage.html#login">로그인</a></div>`}
+function renderCalendar(){const ul=$('#eventList');if(ul){ul.innerHTML='';events.forEach(e=>{const li=document.createElement('li');li.innerHTML=`<strong>${esc(e.title)}</strong> · ${esc(e.when)} · <span class="muted">${esc(e.place)}</span>`;ul.appendChild(li)})}
+const mini=$('#miniCalendar');if(mini)renderMiniCalendar(mini);
+const n=nextEvent();const ne=$('#nextEventText');if(ne)ne.textContent=n?`${n.title} · ${n.when}`:'없음'}
+function renderGallery(){const tip=$('#galleryTip');if(tip)tip.innerHTML=`비회원은 <span class="kbd">열람</span>만 · 업로드는 <span class="kbd">운영진</span> 권한`}
+document.addEventListener('DOMContentLoaded',()=>{initTheme();initNav();setYear();
+const p=document.body.getAttribute('data-page')||'home';
+if(p==='home')renderHome(); if(p==='notice')renderNotice(); if(p==='boards')renderBoards(); if(p==='calendar')renderCalendar(); if(p==='gallery')renderGallery();
+});
+})();

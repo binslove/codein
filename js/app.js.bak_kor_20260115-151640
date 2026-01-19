@@ -1,0 +1,363 @@
+﻿(function () {
+  "use strict";
+
+  const $ = (s, r = document) => r.querySelector(s);
+  const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
+
+  // -----------------------------
+  // Notices (JSON -> normalized)
+  // -----------------------------
+  let notices = [];
+
+  const SAMPLE_NOTICES = [
+    {
+      id: "n-1",
+      title: "Sample Notice",
+      body: "Fallback notice. If fetch fails, this is shown.",
+      tag: "Notice",
+      date: "2026-01-10",
+      tags: ["sample"],
+    },
+  ];
+
+  function normalizeNotice(raw) {
+    const tagsArr = Array.isArray(raw.tags) ? raw.tags.map(String) : [];
+    return {
+      id: String(raw.id ?? ""),
+      title: String(raw.title ?? ""),
+      body: String(raw.content ?? raw.body ?? ""),
+      tag: String(raw.category ?? raw.tag ?? "Notice"),
+      date: String(raw.date ?? ""),
+      tags: tagsArr,
+    };
+  }
+
+  async function loadNotices() {
+    try {
+      const res = await fetch("./data/notices.json", { cache: "no-store" });
+      if (!res.ok) throw new Error("notices.json fetch failed");
+      const data = await res.json();
+      notices = Array.isArray(data) ? data.map(normalizeNotice) : [];
+      if (!notices.length) notices = SAMPLE_NOTICES;
+    } catch (e) {
+      notices = SAMPLE_NOTICES;
+    }
+  }
+
+  // -----------------------------
+  // Events (static sample)
+  // -----------------------------
+  const events = [
+    { title: "OT (New members)", when: "2026-01-10 18:00", place: "Room A (TBD)" },
+    { title: "Weekly meeting", when: "2026-01-14 19:00", place: "Club room" },
+    { title: "Study orientation", when: "2026-01-17 14:00", place: "Online" },
+  ];
+
+  // -----------------------------
+  // Utils
+  // -----------------------------
+  const esc = (s) =>
+    String(s).replace(/[&<>"']/g, (m) => {
+      const map = {
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#39;",
+      };
+      return map[m] || m;
+    });
+
+  const shuffle = (a) => {
+    const b = a.slice();
+    for (let i = b.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [b[i], b[j]] = [b[j], b[i]];
+    }
+    return b;
+  };
+
+  const fmt = (d) => {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const dd = String(d.getDate()).padStart(2, "0");
+    const w = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][d.getDay()];
+    return `${y}.${m}.${dd} (${w})`;
+  };
+
+  const parseDT = (s) => {
+    const [dp, tp] = String(s).split(" ");
+    if (!dp || !tp) return new Date(NaN);
+    const [y, m, d] = dp.split("-").map(Number);
+    const [hh, mm] = tp.split(":").map(Number);
+    return new Date(y, (m || 1) - 1, d || 1, hh || 0, mm || 0, 0, 0);
+  };
+
+  const truncate = (text, n = 120) => {
+    const t = String(text || "").trim();
+    return t.length <= n ? t : t.slice(0, n) + "…";
+  };
+
+  function setYear() {
+    const y = $("#yearText");
+    if (y) y.textContent = String(new Date().getFullYear());
+  }
+
+  // -----------------------------
+  // Theme
+  // -----------------------------
+  function applyTheme(t) {
+    document.documentElement.setAttribute("data-theme", t);
+    const i = $("#themeToggle .icon");
+    if (i) i.textContent = t === "light" ? "☀️" : "🌙";
+    try {
+      localStorage.setItem("codein_theme", t);
+    } catch (e) {}
+  }
+
+  function initTheme() {
+    let saved = null;
+    try {
+      saved = localStorage.getItem("codein_theme");
+    } catch (e) {}
+    applyTheme(saved === "light" ? "light" : "dark");
+
+    const btn = $("#themeToggle");
+    if (btn) {
+      btn.addEventListener("click", () => {
+        const cur = document.documentElement.getAttribute("data-theme") || "dark";
+        applyTheme(cur === "light" ? "dark" : "light");
+      });
+    }
+  }
+
+  // -----------------------------
+  // Nav (mobile)
+  // -----------------------------
+  function initNav() {
+    const b = $("#navToggle"),
+      m = $("#navMenu");
+    if (!b || !m) return;
+
+    b.addEventListener("click", () => {
+      const open = m.classList.toggle("is-open");
+      b.setAttribute("aria-expanded", String(open));
+    });
+
+    $$("#navMenu a").forEach((a) =>
+      a.addEventListener("click", () => {
+        m.classList.remove("is-open");
+        b.setAttribute("aria-expanded", "false");
+      })
+    );
+  }
+
+  // -----------------------------
+  // Notice UI
+  // -----------------------------
+  function noticeCard(n, compact) {
+    const el = document.createElement("article");
+    el.className = "card card--padded";
+
+    const bodyText = compact ? truncate(n.body, 90) : truncate(n.body, 220);
+    const tagText = n.tag || "Notice";
+    const tagExtras =
+      Array.isArray(n.tags) && n.tags.length ? ` · ${esc(n.tags.join(", "))}` : "";
+
+    el.innerHTML = `
+      <div class="card__meta">${esc(n.date)} · <span class="tag">${esc(tagText)}</span><span class="muted small">${tagExtras}</span></div>
+      <h3 class="card__title">${esc(n.title)}</h3>
+      <div class="card__body">${esc(bodyText)}</div>
+      <div class="card__footer">
+        <span class="muted small">${compact ? "Preview" : "Detail"}</span>
+        <a class="btn btn--outline" href="./notice.html?id=${encodeURIComponent(n.id)}">
+          ${compact ? "Open" : "View"}
+        </a>
+      </div>
+    `;
+    return el;
+  }
+
+  function renderHome() {
+    const t = $("#todayText");
+    if (t) t.textContent = fmt(new Date());
+
+    const n = nextEvent();
+    const ne = $("#nextEventText");
+    if (ne) ne.textContent = n ? n.title : "-";
+
+    const cnt = $("#noticeCountText");
+    if (cnt) cnt.textContent = `${notices.length} items`;
+
+    const wrap = $("#noticeCards");
+    if (wrap) {
+      wrap.innerHTML = "";
+      shuffle(notices)
+        .slice(0, 3)
+        .forEach((x) => wrap.appendChild(noticeCard(x, true)));
+    }
+
+    const r = $("#refreshBtn");
+    if (r && wrap) {
+      r.addEventListener("click", () => {
+        wrap.innerHTML = "";
+        shuffle(notices)
+          .slice(0, 3)
+          .forEach((x) => wrap.appendChild(noticeCard(x, true)));
+      });
+    }
+  }
+
+  function applyNoticeList(listEl, items) {
+    listEl.innerHTML = "";
+    items.forEach((n) => {
+      const c = noticeCard(n, false);
+      c.id = `notice-${n.id}`;
+      listEl.appendChild(c);
+    });
+  }
+
+  function renderNotice() {
+    const list = $("#noticeList");
+    if (!list) return;
+
+    applyNoticeList(list, notices);
+
+    const hint = $("#noticeHint");
+    if (hint) hint.textContent = `Total ${notices.length}`;
+
+    const s = $("#noticeSearch");
+    if (s) {
+      s.addEventListener("input", () => {
+        const q = s.value.trim().toLowerCase();
+        const f = notices.filter((n) => {
+          const t = (n.title || "").toLowerCase();
+          const b = (n.body || "").toLowerCase();
+          const g = (n.tag || "").toLowerCase();
+          const extra = Array.isArray(n.tags) ? n.tags.join(" ").toLowerCase() : "";
+          return t.includes(q) || b.includes(q) || g.includes(q) || extra.includes(q);
+        });
+        applyNoticeList(list, f);
+        if (hint) hint.textContent = `Results ${f.length}`;
+      });
+    }
+  }
+
+  // -----------------------------
+  // Boards stub
+  // -----------------------------
+  function renderBoards() {
+    const stub = $("#boardsStub");
+    if (!stub) return;
+    stub.innerHTML = `
+      <div class="card card--padded">
+        <h3 class="card__title">Boards (Prototype)</h3>
+        <p class="muted">Auth/write/delete will be added later.</p>
+        <a class="btn btn--primary" href="./mypage.html#login">Login</a>
+      </div>
+    `;
+  }
+
+  // -----------------------------
+  // Calendar
+  // -----------------------------
+  function nextEvent() {
+    const now = new Date();
+    const sorted = events
+      .map((e) => ({ ...e, dt: parseDT(e.when) }))
+      .filter((e) => e.dt instanceof Date && !isNaN(e.dt) && e.dt >= now)
+      .sort((a, b) => a.dt - b.dt);
+    return sorted[0] || null;
+  }
+
+  function renderMiniCalendar(host) {
+    host.innerHTML = "";
+
+    ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].forEach((d) => {
+      const el = document.createElement("div");
+      el.className = "cal__dow";
+      el.textContent = d;
+      host.appendChild(el);
+    });
+
+    const now = new Date();
+    const y = now.getFullYear();
+    const m = now.getMonth();
+    const first = new Date(y, m, 1);
+    const last = new Date(y, m + 1, 0);
+
+    const blank = first.getDay();
+    const days = last.getDate();
+
+    const eDays = new Set(
+      events
+        .map((e) => {
+          const dt = parseDT(e.when);
+          if (isNaN(dt)) return null;
+          return dt.getFullYear() === y && dt.getMonth() === m ? dt.getDate() : null;
+        })
+        .filter(Boolean)
+    );
+
+    for (let i = 0; i < blank; i++) {
+      const c = document.createElement("div");
+      c.className = "cal__cell";
+      c.innerHTML = `<div class="cal__day muted"> </div>`;
+      host.appendChild(c);
+    }
+
+    for (let d = 1; d <= days; d++) {
+      const c = document.createElement("div");
+      c.className = "cal__cell";
+      const has = eDays.has(d);
+      c.innerHTML = `<div class="cal__day">${d}${has ? '<span class="cal__dot" aria-hidden="true"></span>' : ""}</div>`;
+      host.appendChild(c);
+    }
+  }
+
+  function renderCalendar() {
+    const ul = $("#eventList");
+    if (ul) {
+      ul.innerHTML = "";
+      events.forEach((e) => {
+        const li = document.createElement("li");
+        li.innerHTML = `<strong>${esc(e.title)}</strong> · ${esc(e.when)} · <span class="muted">${esc(e.place)}</span>`;
+        ul.appendChild(li);
+      });
+    }
+
+    const mini = $("#miniCalendar");
+    if (mini) renderMiniCalendar(mini);
+
+    const n = nextEvent();
+    const ne = $("#nextEventText");
+    if (ne) ne.textContent = n ? `${n.title} · ${n.when}` : "-";
+  }
+
+  // -----------------------------
+  // Gallery stub
+  // -----------------------------
+  function renderGallery() {
+    const tip = $("#galleryTip");
+    if (!tip) return;
+    tip.innerHTML = `Guests can view only. Upload is for admins (later).`;
+  }
+
+  // -----------------------------
+  // Boot
+  // -----------------------------
+  document.addEventListener("DOMContentLoaded", async () => {
+    initTheme();
+    initNav();
+    setYear();
+
+    await loadNotices();
+
+    const p = document.body.getAttribute("data-page") || "home";
+    if (p === "home") renderHome();
+    if (p === "notice") renderNotice();
+    if (p === "boards") renderBoards();
+    if (p === "calendar") renderCalendar();
+    if (p === "gallery") renderGallery();
+  });
+})();

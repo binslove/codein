@@ -1,0 +1,988 @@
+﻿/* -----------------------------
+   Boards CRUD (localStorage)
+   - GUEST: cannot write
+   - MEMBER+: can write
+   - ADMIN+: can delete
+----------------------------- */
+const BOARD_STORE_KEY = "codein_board_posts";
+
+
+
+function seedBoardDummyData(){
+  try{
+    const seededKey = "codein_board_seeded_v1";
+    if(localStorage.getItem(seededKey)) return;
+
+    const raw = localStorage.getItem(BOARD_STORE_KEY);
+    const arr = raw ? JSON.parse(raw) : [];
+    if(Array.isArray(arr) && arr.length > 0){
+      localStorage.setItem(seededKey, "1");
+      return;
+    }
+
+    const now = Date.now();
+    const dummy = [
+      { id:"p_"+(now-500000), board:"free", title:"[공지] 첫 인사 & 사용법", content:"자유게시판에서는 스터디 모집/잡담/정보 공유가 가능해요.\n회원은 글 작성 가능!", author:"admin1", createdAt:(now-500000) },
+      { id:"p_"+(now-400000), board:"free", title:"스터디 같이 하실 분?", content:"CS/네트워크 같이 공부하실 분 구합니다!\n댓글 기능은 추후 추가 예정.", author:"member1", createdAt:(now-400000) },
+      { id:"p_"+(now-300000), board:"qa", title:"AWS EC2 요금이 갑자기 늘었어요", content:"Cost Explorer로 원인 추적하는 방법 추천 부탁드립니다.", author:"member1", createdAt:(now-300000) },
+      { id:"p_"+(now-200000), board:"qa", title:"NCP Cloud DB for MySQL 접속 오류", content:"접속 도메인/포트/보안그룹 확인 포인트가 뭐가 있을까요?", author:"admin1", createdAt:(now-200000) }
+    ];
+
+    localStorage.setItem(BOARD_STORE_KEY, JSON.stringify(dummy));
+    localStorage.setItem(seededKey, "1");
+  }catch(e){
+    // ignore
+  }
+}
+function loadBoardPosts(){
+  try{
+    const raw = localStorage.getItem(BOARD_STORE_KEY);
+    const arr = raw ? JSON.parse(raw) : [];
+    return Array.isArray(arr) ? arr : [];
+  }catch(e){ return []; }
+}
+
+function saveBoardPosts(posts){
+  localStorage.setItem(BOARD_STORE_KEY, JSON.stringify(posts));
+}
+
+function renderBoardPosts(){
+  const list = document.getElementById("boardPostList");
+  if(!list) return;
+
+  const qs = new URLSearchParams(location.search);
+const board = (qs.get("board") || "").toLowerCase();
+const posts = loadBoardPosts()
+  .filter(p => !board || p.board === board)
+  .sort((a,b)=> (b.createdAt||0)-(a.createdAt||0));
+  const canDelete = hasRole(ROLES.ADMIN);
+
+  if(posts.length === 0){
+    list.innerHTML = `<div class="card card--padded"><p class="muted">아직 게시글이 없습니다.</p></div>`;
+    return;
+  }
+
+  list.innerHTML = posts.map(p => {
+    const date = p.createdAt ? new Date(p.createdAt).toLocaleString() : "";
+    return `
+      <div class="card card--padded">
+        <div style="display:flex;justify-content:space-between;gap:10px;">
+          <div>
+            <div style="font-weight:800">${escapeHtml(p.title)}</div>
+            <div class="muted" style="font-size:12px">${escapeHtml(p.author)} · ${date}</div>
+          </div>
+          ${canDelete ? `<button class="btn btn--ghost" data-del="${p.id}">삭제</button>` : ``}
+        </div>
+        <div style="margin-top:10px">${escapeHtml(p.content).replace(/\n/g,"<br>")}</div>
+      </div>`;
+  }).join("");
+}
+
+function initBoardsCrud(){
+  const form = document.getElementById("boardWriteForm");
+  
+  // force form hidden initially
+  if(form) form.style.display = "none";const gate = document.getElementById("boardWriteGate");
+  const list = document.getElementById("boardPostList");
+
+  const canWrite = hasRole(ROLES.MEMBER);
+  if(gate) gate.style.display = canWrite ? "none" : "";
+renderBoardPosts();
+
+  if(form && !form.dataset.bound){
+    form.dataset.bound = "1";
+    form.addEventListener("submit", e=>{
+      e.preventDefault();
+      if(!canWrite) return;
+
+      const t=form.title.value.trim();
+      const c=form.content.value.trim();
+      if(!t||!c) return alert("제목/내용 입력");
+
+      const auth=JSON.parse(localStorage.getItem("codein_auth")||"{}");
+      const posts=loadBoardPosts();
+      const qs2 = new URLSearchParams(location.search);
+const board2 = (qs2.get("board") || "free").toLowerCase();
+posts.push({id:"p_"+Date.now(),board:board2,title:t,content:c,author:auth.username||"member",createdAt:Date.now()});
+      saveBoardPosts(posts);
+      form.reset();
+      renderBoardPosts();
+    });
+  }
+
+  if(list && !list.dataset.bound){
+    list.dataset.bound="1";
+    list.addEventListener("click",e=>{
+      const btn=e.target.closest("[data-del]");
+      if(!btn||!hasRole(ROLES.ADMIN)) return;
+      saveBoardPosts(loadBoardPosts().filter(p=>p.id!==btn.dataset.del));
+      renderBoardPosts();
+    });
+  }
+}
+
+function escapeHtml(s){
+  return String(s).replace(/[&<>"']/g,m=>({
+    "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#039;"
+  }[m]));
+}
+
+/*__GUEST_GATE__*/
+// boards.html: 비회원 게이트는 GUEST일 때만 보이게
+function renderGuestGate() {
+  const gate = document.getElementById("boardsGuestGate");
+  if (!gate) return;
+  gate.style.display = (getRole() === ROLES.GUEST) ? "" : "none";
+}
+
+/*__USER_STORE__*/
+// ===== User Store (Prototype) =====
+const USERS_KEY = "codein_users";
+
+// 최초 1회 사용자 목록 생성(비밀번호는 저장 X)
+function ensureUserStore() {
+  if (localStorage.getItem(USERS_KEY)) return;
+  const users = TEST_USERS.map(u => ({ id: u.id, username: u.username, role: u.role }));
+  localStorage.setItem(USERS_KEY, JSON.stringify(users));
+}
+
+function getUsers() {
+  try { return JSON.parse(localStorage.getItem(USERS_KEY)) || []; }
+  catch { return []; }
+}
+
+function saveUsers(users) {
+  localStorage.setItem(USERS_KEY, JSON.stringify(users));
+}
+
+function setUserRole(userId, role) {
+  const users = getUsers();
+  const idx = users.findIndex(u => u.id === userId);
+  if (idx < 0) return false;
+  users[idx].role = role;
+  saveUsers(users);
+  return true;
+}
+
+// SUPERADMIN 페이지 렌더
+function renderSuperAdminPanel() {
+  const tbody = document.getElementById("userAdminTable");
+  if (!tbody) return;
+
+  if (!hasRole(ROLES.SUPERADMIN)) {
+    const msg = document.getElementById("adminMsg");
+    if (msg) msg.textContent = "권한이 없습니다.";
+    return;
+  }
+
+  ensureUserStore();
+  const auth = getAuth();
+  const users = getUsers();
+
+  tbody.innerHTML = users.map(u => {
+    const roleName = ROLE_NAME[u.role] || "UNKNOWN";
+    const isMe = auth && auth.id === u.id;
+    const canMakeAdmin = (u.role === ROLES.MEMBER);
+    const canRevokeAdmin = (u.role === ROLES.ADMIN);
+
+    // SUPERADMIN 계정은 임명/회수 대상에서 제외(안전)
+    const disableActions = isMe || (u.role === ROLES.SUPERADMIN);
+
+    const actionHtml = disableActions
+      ? "<span style='opacity:.7;'>-</span>"
+      : (canMakeAdmin
+          ? "<button class='btn' data-action='promote' data-user='" + u.id + "'>관리자 임명</button>"
+          : (canRevokeAdmin
+              ? "<button class='btn' data-action='revoke' data-user='" + u.id + "'>관리자 회수</button>"
+              : "<span style='opacity:.7;'>-</span>"
+            )
+        );
+
+    return (
+      "<tr>" +
+        "<td style='padding:10px; border-bottom:1px solid rgba(255,255,255,.08);'>" + u.username + "</td>" +
+        "<td style='padding:10px; border-bottom:1px solid rgba(255,255,255,.08);'>" + roleName + "</td>" +
+        "<td style='padding:10px; border-bottom:1px solid rgba(255,255,255,.08);'>" + actionHtml + "</td>" +
+      "</tr>"
+    );
+  }).join("");
+
+  tbody.querySelectorAll("button[data-action]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const action = btn.getAttribute("data-action");
+      const userId = btn.getAttribute("data-user");
+      if (!userId) return;
+
+      if (action === "promote") setUserRole(userId, ROLES.ADMIN);
+      if (action === "revoke") setUserRole(userId, ROLES.MEMBER);
+
+      renderSuperAdminPanel();
+    });
+  });
+}
+// ===== End User Store (Prototype) =====
+
+/*__AUTH_PROTO__*/
+// ===== Auth / Roles (Prototype) =====
+const ROLES = { GUEST: 0, MEMBER: 1, ADMIN: 2, SUPERADMIN: 3 };
+const ROLE_NAME = ["GUEST", "MEMBER", "ADMIN", "SUPERADMIN"];
+const AUTH_KEY = "codein_auth";
+
+const TEST_USERS = [
+  { id: "u-1001", username: "member1", password: "1234", role: ROLES.MEMBER },
+  { id: "u-2001", username: "admin1",  password: "1234", role: ROLES.ADMIN },
+  { id: "u-3001", username: "super1",  password: "1234", role: ROLES.SUPERADMIN },
+];
+
+function getAuth() {
+  try { return JSON.parse(localStorage.getItem(AUTH_KEY)) || null; }
+  catch { return null; }
+}
+
+function getRole() {
+  const auth = getAuth();
+  return auth?.role ?? ROLES.GUEST;
+}
+
+function hasRole(minRole) {
+  const r = getRole();
+
+  // 숫자 비교 지원: hasRole(2)
+  if (typeof minRole === "number") return r >= minRole;
+
+  // 문자열 비교 지원: hasRole("ADMIN")
+  if (typeof minRole === "string") {
+    const key = minRole.toUpperCase();
+    const v = ROLES[key];
+    if (typeof v === "number") return r >= v;
+  }
+
+  return r >= ROLES.GUEST;
+}
+
+function login(username, password) {
+  const u = TEST_USERS.find(x => x.username === username && x.password === password);
+  if (!u) return { ok: false, message: "아이디/비밀번호가 올바르지 않습니다." };
+
+  const payload = { id: u.id, username: u.username, role: u.role };
+  localStorage.setItem(AUTH_KEY, JSON.stringify(payload));
+  return { ok: true, user: payload };
+}
+
+function logout() {
+  localStorage.removeItem(AUTH_KEY);
+}
+
+function applyRoleGuard() {
+  const role = getRole();
+  document.querySelectorAll("[data-min-role]").forEach(el => {
+    const minRole = Number(el.getAttribute("data-min-role"));
+    el.style.display = (role < minRole) ? "none" : "";
+  });
+}
+
+function bindLoginUI() {
+  const form = document.getElementById("loginForm");
+  if (!form) return;
+
+  const userEl = document.getElementById("loginUser");
+  const passEl = document.getElementById("loginPass");
+  const msgEl  = document.getElementById("loginMsg");
+
+  form.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const username = (userEl?.value || "").trim();
+    const password = (passEl?.value || "").trim();
+
+    const res = login(username, password);
+    if (!res.ok) {
+      if (msgEl) msgEl.textContent = res.message;
+      return;
+    }
+    location.href = "./index.html";
+  });
+}
+
+function syncAuthUI() {
+  const auth = getAuth();
+  const authed = !!auth;
+
+  document.querySelectorAll('[data-auth="login"]').forEach(el => {
+    el.style.display = authed ? "none" : "";
+  });
+
+  document.querySelectorAll('[data-auth="logout"]').forEach(el => {
+    el.style.display = authed ? "" : "none";
+  });
+}
+
+function bindLogoutUI() {
+  const btn = document.getElementById("logoutBtn");
+  if (btn && !btn.__bound) {
+    btn.__bound = true;
+    btn.addEventListener("click", (e) => {
+      e.preventDefault();
+      logout();
+      syncAuthUI();
+      location.href = "./index.html";
+    });
+  }
+
+  document.querySelectorAll('[data-auth="logout"]').forEach(el => {
+    if (el.__bound) return;
+    el.__bound = true;
+    el.addEventListener("click", (e) => {
+      if (el.tagName === "A") e.preventDefault();
+      logout();
+      syncAuthUI();
+      location.href = "./index.html";
+    });
+  });
+}
+// ===== End Auth / Roles (Prototype) =====
+
+(function () {
+  "use strict";
+
+  const $ = (s, r = document) => r.querySelector(s);
+  const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
+
+  // -----------------------------
+  // Notices (JSON -> normalized)
+  // -----------------------------
+  let notices = [];
+
+const LS_NOTICE_CUSTOM = "codein_notices_custom";
+
+function loadCustomNoticesRaw() {
+  try {
+    const raw = localStorage.getItem(LS_NOTICE_CUSTOM);
+    const arr = raw ? JSON.parse(raw) : [];
+    return Array.isArray(arr) ? arr : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveCustomNoticesRaw(arr) {
+  localStorage.setItem(LS_NOTICE_CUSTOM, JSON.stringify(arr));
+}
+
+function uniqById(arr) {
+  const m = new Map();
+  arr.forEach((x) => {
+    if (x && x.id) m.set(String(x.id), x);
+  });
+  return Array.from(m.values());
+}
+
+  const SAMPLE_NOTICES = [
+    {
+      id: "n-1",
+      title: "샘플 공지",
+      body: "공지 데이터를 불러오지 못해 샘플 공지를 표시합니다.",
+      tag: "공지",
+      date: "2026-01-10",
+      tags: ["sample"],
+    },
+  ];
+
+  function normalizeNotice(raw) {
+    const tagsArr = Array.isArray(raw.tags) ? raw.tags.map(String) : [];
+    return {
+      id: String(raw.id ?? ""),
+      title: String(raw.title ?? ""),
+      body: String(raw.content ?? raw.body ?? ""),
+      tag: String(raw.category ?? raw.tag ?? "공지"),
+      date: String(raw.date ?? ""),
+      tags: tagsArr,
+    };
+  }
+
+  async function loadNotices() {
+    try {
+      const res = await fetch("./data/notices.json", { cache: "no-store" });
+      if (!res.ok) throw new Error("notices.json fetch failed");
+      const data = await res.json();
+      notices = Array.isArray(data) ? data.map(normalizeNotice) : [];
+const customNotices = loadCustomNoticesRaw().map(normalizeNotice);
+      notices = uniqById([...customNotices, ...notices]);
+      if (!notices.length) notices = SAMPLE_NOTICES;
+    } catch (e) {
+      notices = SAMPLE_NOTICES;
+    }
+  }
+
+  // -----------------------------
+  // Events (static sample)
+  // -----------------------------
+  const staticEvents = [
+    { title: "신입 부원 OT", when: "2026-01-10 18:00", place: "강의실 A(예정)" },
+    { title: "정기 모임", when: "2026-01-14 19:00", place: "동아리방" },
+    { title: "스터디 오리엔테이션", when: "2026-01-17 14:00", place: "온라인" },
+  ];
+
+  // -----------------------------
+  // Utils
+  // -----------------------------
+  const esc = (s) =>
+    String(s).replace(/[&<>"']/g, (m) => {
+      const map = {
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#39;",
+      };
+      return map[m] || m;
+    });
+
+  const shuffle = (a) => {
+    const b = a.slice();
+    for (let i = b.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [b[i], b[j]] = [b[j], b[i]];
+    }
+    return b;
+  };
+
+  const fmt = (d) => {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const dd = String(d.getDate()).padStart(2, "0");
+    const w = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][d.getDay()];
+    return `${y}.${m}.${dd} (${w})`;
+  };
+
+  const parseDT = (s) => {
+    const [dp, tp] = String(s).split(" ");
+    if (!dp || !tp) return new Date(NaN);
+    const [y, m, d] = dp.split("-").map(Number);
+    const [hh, mm] = tp.split(":").map(Number);
+    return new Date(y, (m || 1) - 1, d || 1, hh || 0, mm || 0, 0, 0);
+  };
+
+  const truncate = (text, n = 120) => {
+    const t = String(text || "").trim();
+    return t.length <= n ? t : t.slice(0, n) + "…";
+  };
+
+  function setYear() {
+    const y = $("#yearText");
+    if (y) y.textContent = String(new Date().getFullYear());
+  }
+
+  // -----------------------------
+  // Theme
+  // -----------------------------
+  function applyTheme(t) {
+    document.documentElement.setAttribute("data-theme", t);
+    const i = $("#themeToggle .icon");
+    if (i) i.textContent = t === "light" ? "☀️" : "🌙";
+    try {
+      localStorage.setItem("codein_theme", t);
+    } catch (e) {}
+  }
+
+  function initTheme() {
+    let saved = null;
+    try {
+      saved = localStorage.getItem("codein_theme");
+    } catch (e) {}
+    applyTheme(saved === "light" ? "light" : "dark");
+
+    const btn = $("#themeToggle");
+    if (btn) {
+      btn.addEventListener("click", () => {
+        const cur = document.documentElement.getAttribute("data-theme") || "dark";
+        applyTheme(cur === "light" ? "dark" : "light");
+      });
+    }
+  }
+
+  // -----------------------------
+  // Nav (mobile)
+  // -----------------------------
+  function initNav() {
+    const b = $("#navToggle"),
+      m = $("#navMenu");
+    if (!b || !m) return;
+
+    b.addEventListener("click", () => {
+      const open = m.classList.toggle("is-open");
+      b.setAttribute("aria-expanded", String(open));
+    });
+
+    $$("#navMenu a").forEach((a) =>
+      a.addEventListener("click", () => {
+        m.classList.remove("is-open");
+        b.setAttribute("aria-expanded", "false");
+      })
+    );
+  }
+
+  // -----------------------------
+  // Notice UI
+  // -----------------------------
+  function noticeCard(n, compact) {
+    const el = document.createElement("article");
+    el.className = "card card--padded";
+
+    const bodyText = compact ? truncate(n.body, 90) : truncate(n.body, 220);
+    const tagText = n.tag || "공지";
+    const tagExtras =
+      Array.isArray(n.tags) && n.tags.length ? ` · ${esc(n.tags.join(", "))}` : "";
+
+    el.innerHTML = `
+      <div class="card__meta">${esc(n.date)} · <span class="tag">${esc(tagText)}</span><span class="muted small">${tagExtras}</span></div>
+      <h3 class="card__title">${esc(n.title)}</h3>
+      <div class="card__body">${esc(bodyText)}</div>
+      <div class="card__footer">
+        <span class="muted small">${compact ? "미리보기" : "상세"}</span>
+        <a class="btn btn--outline" href="./notice.html?id=${encodeURIComponent(n.id)}">
+          ${compact ? "열기" : "보기"}
+        </a>
+      </div>
+    `;
+    return el;
+  }
+
+  function renderHome() {
+    const t = $("#todayText");
+    if (t) t.textContent = fmt(new Date());
+
+    const n = nextEvent();
+    const ne = $("#nextEventText");
+    if (ne) ne.textContent = n ? n.title : "-";
+
+    const cnt = $("#noticeCountText");
+    if (cnt) cnt.textContent = `${notices.length} 건`;
+
+    const wrap = $("#noticeCards");
+    if (wrap) {
+      wrap.innerHTML = "";
+      shuffle(notices)
+        .slice(0, 3)
+        .forEach((x) => wrap.appendChild(noticeCard(x, true)));
+    }
+
+    const r = $("#refreshBtn");
+    if (r && wrap) {
+      r.addEventListener("click", () => {
+        wrap.innerHTML = "";
+        shuffle(notices)
+          .slice(0, 3)
+          .forEach((x) => wrap.appendChild(noticeCard(x, true)));
+      });
+    }
+  }
+
+  function applyNoticeList(listEl, 건) {
+    listEl.innerHTML = "";
+    건.forEach((n) => {
+      const c = noticeCard(n, false);
+      c.id = `notice-${n.id}`;
+      listEl.appendChild(c);
+    });
+  }
+
+  function renderNotice() {
+    const list = $("#noticeList");
+    if (!list) return;
+
+    applyNoticeList(list, notices);
+
+    const hint = $("#noticeHint");
+    if (hint) hint.textContent = `총 ${notices.length}`;
+
+    const s = $("#noticeSearch");
+    if (s) {
+      s.addEventListener("input", () => {
+        const q = s.value.trim().toLowerCase();
+        const f = notices.filter((n) => {
+          const t = (n.title || "").toLowerCase();
+          const b = (n.body || "").toLowerCase();
+          const g = (n.tag || "").toLowerCase();
+          const extra = Array.isArray(n.tags) ? n.tags.join(" ").toLowerCase() : "";
+          return t.includes(q) || b.includes(q) || g.includes(q) || extra.includes(q);
+        });
+        applyNoticeList(list, f);
+        if (hint) hint.textContent = `검색 결과 ${f.length}`;
+      });
+    }
+  }
+
+  // -----------------------------
+  // Boards stub
+  // -----------------------------
+  function renderBoards(){
+  const stub = document.getElementById("boardsStub") || document.querySelector("#boardsStub");
+  if(!stub) return;
+
+  const qs = new URLSearchParams(location.search);
+  const board = (qs.get("board") || "").toLowerCase(); // "", "free", "qa"
+
+  // 1) 게시판 선택 화면
+  if(board !== "free" && board !== "qa"){
+    stub.innerHTML = `
+      <div class="card card--padded">
+        <h2 class="card__title">게시판</h2>
+        <p class="muted">게시판을 선택해 주세요.</p>
+      </div>
+
+      <div style="display:grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap:14px; margin-top:16px;">
+        <a class="card card--padded" href="./boards.html?board=free" style="text-decoration:none; color:inherit;">
+          <div style="font-weight:900; font-size:18px;">자유게시판</div>
+          <div class="muted" style="margin-top:8px;">정보 공유, 스터디 모집, 잡담.</div>
+          <div class="muted" style="margin-top:10px; font-size:12px;">→ 글 보러가기</div>
+        </a>
+
+        <a class="card card--padded" href="./boards.html?board=qa" style="text-decoration:none; color:inherit;">
+          <div style="font-weight:900; font-size:18px;">Q&amp;A</div>
+          <div class="muted" style="margin-top:8px;">개발/과제/인프라 질문을 모아 해결.</div>
+          <div class="muted" style="margin-top:10px; font-size:12px;">→ 질문 보러가기</div>
+        </a>
+      </div>
+
+      <div class="card card--padded" style="margin-top:16px;">
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:12px;">
+          <div style="font-weight:900; font-size:16px;">최근 글</div>
+          <div class="muted" style="font-size:12px;">더미 데이터 포함</div>
+        </div>
+        <div id="boardsRecentList" style="margin-top:12px; display:grid; gap:10px;"></div>
+      </div>
+    `;
+    // 최근 글 렌더
+    try{
+      const el = document.getElementById("boardsRecentList");
+      if(el){
+        const posts = loadBoardPosts().slice().sort((a,b)=>(b.createdAt||0)-(a.createdAt||0)).slice(0,4);
+        if(posts.length === 0){
+          el.innerHTML = `<div class="muted">아직 글이 없습니다.</div>`;
+        }else{
+          el.innerHTML = posts.map(p=>{
+            const b = p.board === "qa" ? "Q&A" : "자유";
+            const href = `./boards.html?board=${p.board}`;
+            const dt = p.createdAt ? new Date(p.createdAt).toLocaleDateString() : "";
+            return `<a href="${href}" style="text-decoration:none; color:inherit;">
+              <div class="card card--padded" style="padding:12px 14px;">
+                <div style="display:flex; gap:10px; align-items:center; justify-content:space-between;">
+                  <div style="font-weight:800;">[${b}] ${escapeHtml(p.title||"")}</div>
+                  <div class="muted" style="font-size:12px;">${escapeHtml(dt)}</div>
+                </div>
+                <div class="muted" style="margin-top:6px; font-size:12px;">${escapeHtml(p.author||"")}</div>
+              </div>
+            </a>`;
+          }).join("");
+        }
+      }
+    }catch(e){}
+    return;
+  }
+
+  // 2) 게시판 상세 화면(글 목록/작성)
+  const title = board === "qa" ? "Q&A" : "자유게시판";
+  stub.innerHTML = `
+    <div class="card card--padded">
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:12px;">
+        <div>
+          <h2 class="card__title" style="margin:0;">${title}</h2>
+          <p class="muted" style="margin-top:8px;">회원은 작성 가능, 운영자(ADMIN) 이상은 삭제 가능합니다.</p>
+        </div>
+        <a class="btn btn--ghost" href="./boards.html">목록으로</a>
+      </div>
+    </div>
+
+    <div id="boardWriteGate" class="card card--padded" style="margin-top:16px;">
+      <div style="font-weight:800; font-size:16px;">글 작성은 로그인 후 가능합니다.</div>
+      <p class="muted" style="margin-top:8px;">회원(MEMBER)부터 작성할 수 있어요.</p>
+      <a class="btn" href="./login.html?next=boards.html?board=${board}" style="margin-top:10px; display:inline-flex;">로그인 하러가기</a>
+    </div>
+
+    <div class="card card--padded" style="margin-top:16px;">
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:12px;">
+        <div style="font-weight:900; font-size:16px;">글 목록</div>
+        <button id="openWriteBtn" class="btn" type="button">작성</button>
+      </div>
+      <p class="muted" style="margin-top:8px;">작성 버튼은 회원부터 사용 가능합니다.</p>
+    </div>
+
+    <form id="boardWriteForm" class="card card--padded" style="margin-top:16px; display:none;">
+      <div style="font-weight:900; font-size:16px;">새 글 작성</div>
+      <div style="margin-top:12px; display:grid; gap:10px;">
+        <input name="title" class="input" placeholder="제목" maxlength="80" />
+        <textarea name="content" class="input" placeholder="내용" rows="6"></textarea>
+        <div style="display:flex; gap:10px; justify-content:flex-end;">
+          <button id="cancelWriteBtn" class="btn btn--ghost" type="button">취소</button>
+          <button class="btn" type="submit">등록</button>
+        </div>
+      </div>
+    </form>
+
+    <div id="boardPostList" style="margin-top:16px; display:grid; gap:12px;"></div>
+  `;
+}
+
+  // -----------------------------
+function initNoticeWrite() {
+const form = document.getElementById("noticeWriteForm");
+    if (!form) return;
+
+    if (!hasRole("ADMIN")) {
+      form.querySelectorAll("input, textarea, button").forEach((el) => (el.disabled = true));
+      return;
+    }
+
+    form.addEventListener("submit", (e) => {
+      e.preventDefault();
+
+      const title = (document.getElementById("nwTitle")?.value || "").trim();
+      const category = (document.getElementById("nwCategory")?.value || "").trim() || "공지";
+      const tagsRaw = (document.getElementById("nwTags")?.value || "").trim();
+      const content = (document.getElementById("nwContent")?.value || "").trim();
+
+      if (!title || !content) return;
+
+      const now = new Date();
+      const id = "c-" + now.getTime();
+
+      const auth = JSON.parse(localStorage.getItem("codein_auth") || "{}");
+      const author = auth.username || "admin";
+
+      const notice = {
+        id,
+        title,
+        category,
+        tags: tagsRaw ? tagsRaw.split(",").map((s) => s.trim()).filter(Boolean) : [],
+        date: now.toISOString().slice(0, 10),
+        content,
+        author,
+        _src: "local"
+      };
+
+      const cur = loadCustomNoticesRaw();
+      cur.unshift(notice);
+      saveCustomNoticesRaw(cur);
+
+      location.href = "./notice.html?id=" + encodeURIComponent(id);
+    });
+  }
+  // Calendar
+  // -----------------------------
+
+
+const LS_CAL_EVENTS = "codein_calendar_events";
+
+function loadCustomEvents() {
+  try {
+    const raw = localStorage.getItem(LS_CAL_EVENTS);
+    const arr = raw ? JSON.parse(raw) : [];
+    return Array.isArray(arr) ? arr : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveCustomEvents(arr) {
+  localStorage.setItem(LS_CAL_EVENTS, JSON.stringify(arr));
+}
+
+function getAllEvents() {
+  const customEvents = loadCustomEvents();
+  // customEvents는 {title, when, place} 형태로 저장
+  return [...customEvents, ...staticEvents];
+}
+
+function initCalendarAdd() {
+  const form = document.getElementById("calendarAddForm");
+  if (!form) return;
+
+  if (!hasRole("ADMIN")) {
+    form.querySelectorAll("input, textarea, button").forEach((el) => (el.disabled = true));
+    return;
+  }
+
+  form.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const title = (document.getElementById("calTitle")?.value || "").trim();
+    const date = (document.getElementById("calDate")?.value || "").trim();
+    const time = (document.getElementById("calTime")?.value || "").trim();
+    const place = (document.getElementById("calPlace")?.value || "").trim();
+    const memo = (document.getElementById("calMemo")?.value || "").trim();
+
+    if (!title || !date) return;
+
+    const when = time ? `${date} ${time}` : `${date} 00:00`;
+    const ev = { title, when, place: place || (memo ? memo : "-"), _src: "local" };
+
+    const cur = loadCustomEvents();
+    cur.unshift(ev);
+    saveCustomEvents(cur);
+
+    renderCalendar();
+    form.reset();
+  });
+}
+
+  function nextEvent() {
+    const now = new Date();
+    const sorted = getAllEvents()
+      .map((e) => ({ ...e, dt: parseDT(e.when) }))
+      .filter((e) => e.dt instanceof Date && !isNaN(e.dt) && e.dt >= now)
+      .sort((a, b) => a.dt - b.dt);
+    return sorted[0] || null;
+  }
+
+  function renderMiniCalendar(host) {
+    host.innerHTML = "";
+
+    ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].forEach((d) => {
+      const el = document.createElement("div");
+      el.className = "cal__dow";
+      el.textContent = d;
+      host.appendChild(el);
+    });
+
+    const now = new Date();
+    const y = now.getFullYear();
+    const m = now.getMonth();
+    const first = new Date(y, m, 1);
+    const last = new Date(y, m + 1, 0);
+
+    const blank = first.getDay();
+    const days = last.getDate();
+
+    const eDays = new Set(
+      getAllEvents().map((e) => {
+          const dt = parseDT(e.when);
+          if (isNaN(dt)) return null;
+          return dt.getFullYear() === y && dt.getMonth() === m ? dt.getDate() : null;
+        })
+        .filter(Boolean)
+    );
+
+    for (let i = 0; i < blank; i++) {
+      const c = document.createElement("div");
+      c.className = "cal__cell";
+      c.innerHTML = `<div class="cal__day muted"> </div>`;
+      host.appendChild(c);
+    }
+
+    for (let d = 1; d <= days; d++) {
+      const c = document.createElement("div");
+      c.className = "cal__cell";
+      const has = eDays.has(d);
+      c.innerHTML = `<div class="cal__day">${d}${has ? '<span class="cal__dot" aria-hidden="true"></span>' : ""}</div>`;
+      host.appendChild(c);
+    }
+  }
+
+  function renderCalendar() {
+    const ul = $("#eventList");
+    if (ul) {
+      ul.innerHTML = "";
+      getAllEvents().forEach((e) => {
+        const li = document.createElement("li");
+        li.innerHTML = `<strong>${esc(e.title)}</strong> · ${esc(e.when)} · <span class="muted">${esc(e.place)}</span>`;
+        ul.appendChild(li);
+      });
+    }
+
+    const mini = $("#miniCalendar");
+    if (mini) renderMiniCalendar(mini);
+
+    const n = nextEvent();
+    const ne = $("#nextEventText");
+    if (ne) ne.textContent = n ? `${n.title} · ${n.when}` : "-";
+  }
+
+  // -----------------------------
+  // Gallery stub
+  // -----------------------------
+  function renderGallery() {
+    const tip = $("#galleryTip");
+    if (!tip) return;
+    tip.innerHTML = `비회원은 보기만 가능합니다. 업로드는 관리자 기능(추후)입니다.`;
+  }
+  // -----------------------------
+  // Boot
+  // -----------------------------
+  document.addEventListener("DOMContentLoaded", async () => {
+    initTheme();
+    initNav();
+    setYear();
+
+    applyRoleGuard();
+    syncAuthUI();
+    bindLogoutUI();
+    bindLoginUI();
+
+    ensureUserStore();
+    renderSuperAdminPanel();
+
+    await loadNotices();
+
+    const p = document.body.getAttribute("data-page") || "home";
+    if (p === "home") renderHome();
+    if (p === "notice") renderNotice();
+    if (p === "notice-write") { hideNoticeWriteGuardIfAdmin(); initNoticeWrite(); }
+    if (p === "boards") { seedBoardDummyData(); renderBoards(); renderGuestGate(); initBoardsCrud(); }
+    if (p === "calendar") {
+      initCalendarAdd();
+      renderCalendar();
+    }
+    if (p === "gallery") renderGallery();
+  });
+})();
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// Expose auth helpers for devtools/other scripts
+window.getRole = getRole;
+window.hasRole = hasRole;
+
+
+
+
+
+
+
+
+
+

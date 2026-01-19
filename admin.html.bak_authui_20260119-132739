@@ -1,0 +1,55 @@
+﻿<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>운영진 관리</title>
+  <link rel="stylesheet" href="./css/style.css" />
+  <script src="./js/app.js" defer></script>
+</head>
+<body data-page="admin">
+  <header class="nav">
+    <div class="nav__inner">
+      <a class="nav__brand" href="./index.html">CODEIN</a>
+      <nav class="nav__menu">
+        <a class="nav__link" href="./index.html">홈</a>
+        <a class="nav__link" href="./notices.html">공지</a>
+        <a class="nav__link" href="./calendar.html">캘린더</a>
+        <a class="nav__link" href="./boards.html">게시판</a>
+        <a class="nav__link" href="./gallery.html">갤러리</a>
+        <a class="nav__link" href="./login.html">로그인</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container" style="padding:28px 16px;">
+    <section data-min-role="3" class="card" style="padding:18px;">
+      <h1 style="margin:0 0 10px;">운영진(관리자) 임명 / 회수</h1>
+      <p style="margin:0 0 14px; opacity:.8;">
+        SUPERADMIN만 접근 가능. 사용자 권한을 MEMBER ↔ ADMIN으로 변경합니다.
+      </p>
+
+      <div id="adminMsg" style="margin:10px 0;"></div>
+
+      <div style="overflow:auto;">
+        <table style="width:100%; border-collapse:collapse;">
+          <thead>
+            <tr>
+              <th style="text-align:left; padding:10px; border-bottom:1px solid rgba(255,255,255,.12);">User</th>
+              <th style="text-align:left; padding:10px; border-bottom:1px solid rgba(255,255,255,.12);">Role</th>
+              <th style="text-align:left; padding:10px; border-bottom:1px solid rgba(255,255,255,.12);">Action</th>
+            </tr>
+          </thead>
+          <tbody id="userAdminTable"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section data-min-role="0" id="adminGuest" class="card" style="padding:18px; margin-top:14px;">
+      <h2 style="margin:0 0 8px;">접근 불가</h2>
+      <p style="margin:0; opacity:.85;">이 페이지는 슈퍼관리자만 접근할 수 있습니다.</p>
+      <p style="margin:10px 0 0;"><a href="./login.html">로그인 하러가기</a></p>
+    </section>
+  </main>
+</body>
+</html>
