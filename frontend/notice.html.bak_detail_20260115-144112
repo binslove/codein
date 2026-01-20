@@ -1,0 +1,171 @@
+﻿<!doctype html>
+<html lang="ko">
+<head>
+
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#0b1220" />
+  <meta name="description" content="동아리 공지/게시판/캘린더/갤러리를 한 곳에서. (정적 프로토타입)" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./css/style.css" />
+
+  <title>코드인(CodeIn) | 공지</title>
+</head>
+<body data-page="notice" class="page--notice">
+  <a class="skip-link" href="#content">본문으로 바로가기</a>
+
+  <header class="header">
+    <div class="container header__inner">
+      <a class="brand" href="./index.html" aria-label="코드인 홈">
+        <span class="brand__mark" aria-hidden="true">⌘</span>
+        <span class="brand__name">CodeIn</span>
+      </a>
+
+      <nav class="nav" aria-label="주요 메뉴">
+        <button class="nav__toggle" id="navToggle" aria-controls="navMenu" aria-expanded="false">
+          <span class="sr-only">메뉴 열기</span>
+          <span aria-hidden="true">☰</span>
+        </button>
+
+        <div class="nav__menu" id="navMenu">
+          <a class="nav__link nav__link--active" href="notices.html">공지</a>
+          <a class="nav__link" href="./boards.html">게시판</a>
+          <a class="nav__link" href="./calendar.html">캘린더</a>
+          <a class="nav__link" href="./gallery.html">갤러리</a>
+          <a class="nav__link nav__link--soon " href="./contest.html" title="추후 오픈">코딩테스트<span class="pill">준비중</span></a>
+          <a class="nav__link" href="./mypage.html">마이페이지</a>
+        </div>
+      </nav>
+
+      <div class="header__actions">
+        <button class="btn btn--ghost" id="themeToggle" type="button" aria-label="테마 전환">
+          <span class="icon" aria-hidden="true">🌙</span>
+          <span class="btn__text">테마</span>
+        </button>
+        <a class="btn btn--primary" href="./mypage.html#login" aria-label="로그인/가입">로그인</a>
+      </div>
+    </div>
+  </header>
+
+  <main id="content">
+
+    <section class="section">
+      <div class="container">
+        <div class="section__head">
+          <div>
+            <h1 class="section__title">공지</h1>
+            <p class="section__desc">전체 공지 목록(샘플). 검색은 제목/내용/태그에 적용됩니다.</p>
+          </div>
+          <div class="section__actions">
+            <input class="input" id="noticeSearch" placeholder="공지 검색..." aria-label="공지 검색" style="max-width:280px;" />
+            <span class="muted small" id="noticeHint"></span>
+          </div>
+        </div>
+        <div class="cards" id="noticeList" style="grid-template-columns: repeat(2, 1fr);"></div>
+        <p class="muted small" style="margin-top:12px;">팁: 카드 버튼으로 특정 공지 앵커(#notice-1)로 이동할 수 있어요.</p>
+      </div>
+    </section>
+
+  </main>
+
+  <footer class="footer">
+    <div class="container footer__inner">
+      <div>
+        <div class="footer__brand">CodeIn</div>
+        <div class="muted small">동아리 웹사이트 정적 프로토타입</div>
+      </div>
+      <div class="footer__right muted small">
+        <span id="yearText"></span> · Built with HTML/CSS/JS
+      </div>
+    </div>
+  </footer>
+
+  <script src="./js/app.js"></script>
+<!-- AUTO_NOTICE_DETAIL_SCRIPT_v1 -->
+<script type="module">
+  async function fetchJSON(path){
+    const res = await fetch(path, { cache: "no-store" });
+    if(!res.ok) throw new Error(`Failed to fetch ${path}: ${res.status}`);
+    return await res.json();
+  }
+
+  function escapeHTML(s){
+    return String(s).replace(/[&<>"']/g, m => ({
+      "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
+    }[m]));
+  }
+
+  function findMount(){
+    return document.getElementById("noticeDetail")
+      || document.getElementById("detail")
+      || document.querySelector("[data-notice-detail]")
+      || document.querySelector("main")
+      || document.body;
+  }
+
+  (async function init(){
+    const params = new URLSearchParams(location.search);
+    const id = params.get("id");
+    const mount = findMount();
+
+    if(!id){
+      mount.innerHTML = `
+        <div class="container">
+          <div class="card">
+            <h2 class="title">공지 상세</h2>
+            <p class="muted">공지 목록에서 항목을 선택해 주세요.</p>
+            <a class="btn btn--ghost" href="notices.html">공지 목록으로</a>
+          </div>
+        </div>
+      `;
+      return;
+    }
+
+    const notices = await fetchJSON("./data/notices.json");
+    const n = notices.find(x => x.id === id);
+
+    if(!n){
+      mount.innerHTML = `
+        <div class="container">
+          <div class="card">
+            <h2 class="title">공지 없음</h2>
+            <p class="muted">잘못된 접근이거나 삭제된 공지입니다.</p>
+            <a class="btn btn--ghost" href="notices.html">공지 목록으로</a>
+          </div>
+        </div>
+      `;
+      return;
+    }
+
+    mount.innerHTML = `
+      <div class="container">
+        <a class="btn btn--ghost" href="notices.html">← 목록</a>
+
+        <article class="card" id="noticeDetail">
+          <div class="meta">
+            <span class="badge">${escapeHTML(n.category || "")}</span>
+            <span class="date">${escapeHTML(n.date || "")}</span>
+          </div>
+          <h1 class="title">${escapeHTML(n.title || "")}</h1>
+          <div class="tags">
+            ${(n.tags || []).map(t => `<span class="tag">#${escapeHTML(t)}</span>`).join("")}
+          </div>
+          <hr class="line" />
+          <div class="content">
+            <p>${escapeHTML(n.content || "").replace(/\n/g,"<br>")}</p>
+          </div>
+        </article>
+      </div>
+    `;
+  })();
+</script>
+<!-- /AUTO_NOTICE_DETAIL_SCRIPT_v1 -->
+</body>
+</html>
+
+
+
+
+

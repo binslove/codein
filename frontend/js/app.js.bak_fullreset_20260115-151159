@@ -1,0 +1,83 @@
+﻿(function(){'use strict';
+const $=(s,r=document)=>r.querySelector(s),$$=(s,r=document)=>Array.from(r.querySelectorAll(s));
+let notices = [];
+const SAMPLE_NOTICES = [
+  { id:"n-1", title:"샘플 공지", body:"샘플 내용", tag:"공지", date:"2026-01-10" }
+];
+
+function normalizeNotice(raw){
+  return {
+    id: String(raw.id),
+    title: String(raw.title || ""),
+    body: String(raw.content || raw.body || ""),
+    tag: String(raw.category || raw.tag || ""),
+    date: String(raw.date || "")
+  };
+}
+
+async function loadNotices(){
+  try{
+    const res = await fetch("./data/notices.json", { cache: "no-store" });
+    if(!res.ok) throw new Error("notices.json fetch failed");
+    const data = await res.json();
+    notices = Array.isArray(data) ? data.map(normalizeNotice) : [];
+    if(!notices.length) notices = SAMPLE_NOTICES;
+  }catch(e){
+    notices = SAMPLE_NOTICES;
+  }
+}
+const events=[
+  {title:"OT(신입 부원)",when:"2026-01-10 18:00",place:"강의실 A (예정)"},
+  {title:"정기 회의",when:"2026-01-14 19:00",place:"동아리방"},
+  {title:"스터디 오리엔테이션",when:"2026-01-17 14:00",place:"온라인"}
+];
+const esc=s=>String(s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+const shuffle=a=>{a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a};
+const fmt = d => {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  const w = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][d.getDay()];
+  return `${y}.${m}.${dd} (${w})`;
+};
+const parseDT=s=>{const [dp,tp]=s.split(' ');const [y,m,d]=dp.split('-').map(Number);const [hh,mm]=tp.split(':').map(Number);return new Date(y,m-1,d,hh,mm,0,0)};
+function applyTheme(t){
+  document.documentElement.setAttribute("data-theme", t);
+  const i = $("#themeToggle .icon");
+  if(i) i.textContent = (t === "light") ? "☀️" : "🌙";
+  try{ localStorage.setItem("codein_theme", t); }catch(e){}
+}catch(e){}}
+function initTheme(){let s=null;try{s=localStorage.getItem('codein_theme')}catch(e){}applyTheme(s==='light'?'light':'dark');const b=$('#themeToggle');if(b)b.addEventListener('click',()=>{const c=document.documentElement.getAttribute('data-theme')||'dark';applyTheme(c==='light'?'dark':'light')})}
+function initNav(){const b=$('#navToggle'),m=$('#navMenu');if(!b||!m)return;b.addEventListener('click',()=>{const o=m.classList.toggle('is-open');b.setAttribute('aria-expanded',String(o))});$$('#navMenu a').forEach(a=>a.addEventListener('click',()=>{m.classList.remove('is-open');b.setAttribute('aria-expanded','false')}))}
+function setYear(){const y=$('#yearText');if(y)y.textContent=String(new Date().getFullYear())}
+function nextEvent(){const now=new Date();return events.map(e=>({...e,dt:parseDT(e.when)})).filter(e=>e.dt>=now).sort((a,b)=>a.dt-b.dt)[0]||null}
+function noticeCard(n,compact){const el=document.createElement('article');el.className='card card--padded';el.innerHTML=`<div class="card__meta">${esc(n.date)} 쨌 <span class="tag">${esc(n.tag)}</span></div><h3 class="card__title">${esc(n.title)}</h3><div class="card__body">${esc(n.body)}</div><div class="card__footer"><span class="muted small">${compact?'鍮꾪쉶?? ?붿빟留?:'?곸꽭(?뺤쟻) 蹂닿린'}</span><a class="btn btn--outline" href="./notice.html?id=${encodeURIComponent(n.id)}">${compact?'?붾낫湲?:'留곹겕'}</a></div>`;return el}
+function renderMiniCalendar(host){host.innerHTML='';['??,'??,'??,'??,'紐?,'湲?,'??].forEach(d=>{const el=document.createElement('div');el.className='cal__dow';el.textContent=d;host.appendChild(el)});
+const now=new Date(),y=now.getFullYear(),m=now.getMonth();const first=new Date(y,m,1),last=new Date(y,m+1,0);const blank=first.getDay(),days=last.getDate();
+const eDays=new Set(events.map(e=>{const dt=parseDT(e.when);return (dt.getFullYear()===y&&dt.getMonth()===m)?dt.getDate():null}).filter(Boolean));
+for(let i=0;i<blank;i++){const c=document.createElement('div');c.className='cal__cell';c.innerHTML='<div class="cal__day muted"> </div>';host.appendChild(c)}
+for(let d=1;d<=days;d++){const c=document.createElement('div');c.className='cal__cell';const has=eDays.has(d);c.innerHTML=`<div class="cal__day">${d}${has?'<span class="cal__dot" aria-hidden="true"></span>':''}</div>`;host.appendChild(c)}
+}
+function renderHome(){const t=$('#todayText');if(t)t.textContent=fmt(new Date());const n=nextEvent();const ne=$('#nextEventText');if(ne)ne.textContent=n?n.title:'?놁쓬';
+const cnt=$('#noticeCountText');if(cnt)cnt.textContent=`${notices.length}건`;
+const wrap=$('#noticeCards');if(wrap){wrap.innerHTML='';shuffle(notices).slice(0,3).forEach(x=>wrap.appendChild(noticeCard(x,true)))}
+const r=$('#refreshBtn');if(r&&wrap){r.addEventListener('click',()=>{wrap.innerHTML='';shuffle(notices).slice(0,3).forEach(x=>wrap.appendChild(noticeCard(x,true)))})}}
+function renderNotice(){const list=$('#noticeList');if(!list)return;list.innerHTML='';notices.forEach(n=>{const c=noticeCard(n,false);c.id=`notice-${n.id}`;list.appendChild(c)});
+const hint=$('#noticeHint');if(hint)hint.textContent=`珥?${notices.length}嫄?(?섑뵆)`;
+const s=$('#noticeSearch');if(s)s.addEventListener('input',()=>{const q=s.value.trim().toLowerCase();const f=notices.filter(n=>n.title.toLowerCase().includes(q)||n.body.toLowerCase().includes(q)||n.tag.toLowerCase().includes(q));
+list.innerHTML='';f.forEach(n=>{const c=noticeCard(n,false);c.id=`notice-${n.id}`;list.appendChild(c)});if(hint)hint.textContent=`寃??寃곌낵 ${f.length}嫄?(?섑뵆)`})}
+function renderBoards(){const stub=$('#boardsStub');if(stub)stub.innerHTML=`<div class="card card--padded"><h3 class="card__title">寃뚯떆?먯? 濡쒓렇?????댁슜</h3><p class="muted">?꾨줈?좏????④퀎?먯꽌??沅뚰븳/湲?곌린/?볤? 湲곕뒫???곌껐?섏? ?딆븯?듬땲??</p><ul class="bullets"><li>?먯쑀寃뚯떆??/ Q&amp;A / 鍮꾨?寃뚯떆??/li><li>沅뚰븳: ?뚯썝 ?댁긽 (鍮꾪쉶?먯? 紐⑸줉留?</li><li>?좉퀬/釉붾씪?몃뱶: 異뷀썑</li></ul><a class="btn btn--primary" href="./mypage.html#login">濡쒓렇??/a></div>`}
+function renderCalendar(){const ul=$('#eventList');if(ul){ul.innerHTML='';events.forEach(e=>{const li=document.createElement('li');li.innerHTML=`<strong>${esc(e.title)}</strong> 쨌 ${esc(e.when)} 쨌 <span class="muted">${esc(e.place)}</span>`;ul.appendChild(li)})}
+const mini=$('#miniCalendar');if(mini)renderMiniCalendar(mini);
+const n=nextEvent();const ne=$('#nextEventText');if(ne)ne.textContent=n?`${n.title} 쨌 ${n.when}`:'?놁쓬'}
+function renderGallery(){const tip=$('#galleryTip');if(tip)tip.innerHTML=`鍮꾪쉶?먯? <span class="kbd">?대엺</span>留?쨌 ?낅줈?쒕뒗 <span class="kbd">?댁쁺吏?/span> 沅뚰븳`}
+document.addEventListener('DOMContentLoaded',async ()=>{initTheme();initNav();setYear();
+  await loadNotices();
+const p=document.body.getAttribute('data-page')||'home';
+if(p==='home')renderHome(); if(p==='notice')renderNotice(); if(p==='boards')renderBoards(); if(p==='calendar')renderCalendar(); if(p==='gallery')renderGallery();
+});
+})();
+
+
+
+

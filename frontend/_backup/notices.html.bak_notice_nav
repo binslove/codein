@@ -1,0 +1,252 @@
+﻿<!doctype html>
+<html lang="ko" data-theme="dark">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>공지 목록</title>
+  <link rel="stylesheet" href="./css/style.css" />
+</head>
+<body class="page--notices">
+  <!-- ✅ 너희 프로젝트에 이미 있는 상단 네비 구조가 있다면 그대로 복붙하고,
+       "공지" 링크만 notices.html 로 연결되게 바꿔줘 -->
+  <header class="header">
+    <div class="container header__inner">
+      <a class="brand" href="./index.html" aria-label="코드인 홈">
+        <span class="brand__mark" aria-hidden="true">⌘</span>
+        <span class="brand__name">CodeIn</span>
+      </a>
+
+      <nav class="nav" aria-label="주요 메뉴">
+        <button class="nav__toggle" id="navToggle" aria-controls="navMenu" aria-expanded="false">
+          <span class="sr-only">메뉴 열기</span>
+          <span aria-hidden="true">☰</span>
+        </button>
+
+        <div class="nav__menu" id="navMenu">
+          <a class="nav__link nav__link--active" href="notices.html">공지</a>
+          <a class="nav__link" href="./boards.html">게시판</a>
+          <a class="nav__link" href="./calendar.html">캘린더</a>
+          <a class="nav__link" href="./gallery.html">갤러리</a>
+          <a class="nav__link nav__link--soon " href="./contest.html" title="추후 오픈">코딩테스트<span class="pill">준비중</span></a>
+          <a class="nav__link" href="./mypage.html">마이페이지</a>
+        </div>
+      </nav>
+
+      <div class="header__actions">
+        <button class="btn btn--ghost" id="themeToggle" type="button" aria-label="테마 전환">
+          <span class="icon" aria-hidden="true">🌙</span>
+          <span class="btn__text">테마</span>
+        </button>
+        <a class="btn btn--primary" href="./mypage.html#login" aria-label="로그인/가입">로그인</a>
+      </div>
+    </div>
+  </header>
+
+  <main class="container">
+    <div class="page-head">
+      <h1 class="page-title">공지</h1>
+
+      <div class="toolbar">
+        <select id="noticeCategory" class="input">
+          <option value="all">전체</option>
+        </select>
+
+        <select id="noticeSort" class="input">
+          <option value="new">최신순</option>
+          <option value="old">오래된순</option>
+        </select>
+      </div>
+    </div>
+
+    <div id="noticeList" class="grid"></div>
+  <!-- AUTO_NOTICES_LIST_v1 -->
+<section class="section">
+  <div class="container">
+    <div class="page-head">
+      <h1 class="page-title">공지</h1>
+      <div class="toolbar">
+        <select class="input" id="noticeCategory">
+          <option value="">전체</option>
+        </select>
+        <select class="input" id="noticeSort">
+          <option value="new">최신순</option>
+          <option value="old">오래된순</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="grid" id="noticeList" aria-live="polite"></div>
+  </div>
+</section>
+
+<script type="module">
+  async function fetchJSON(path){
+    const res = await fetch(path, { cache: "no-store" });
+    if(!res.ok) throw new Error(`Failed to fetch ${path}: ${res.status}`);
+    return await res.json();
+  }
+  function escapeHTML(s){
+    return String(s).replace(/[&<>"']/g, m => ({
+      "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
+    }[m]));
+  }
+
+  function renderCard(n){
+    const tags = (n.tags || []).map(t => `<span class="tag">#${escapeHTML(t)}</span>`).join("");
+    return `
+      <article class="notice-card" tabindex="0" role="link" aria-label="${escapeHTML(n.title)}" data-id="${escapeHTML(n.id)}">
+        <div class="meta">
+          <span class="badge">${escapeHTML(n.category || "")}</span>
+          <span class="date">${escapeHTML(n.date || "")}</span>
+        </div>
+        <h3 class="title">${escapeHTML(n.title || "")}</h3>
+        <div class="tags">${tags}</div>
+      </article>
+    `;
+  }
+
+  function compareByDate(a,b,dir){
+    const da = new Date(a.date || "1970-01-01").getTime();
+    const db = new Date(b.date || "1970-01-01").getTime();
+    return dir === "new" ? (db - da) : (da - db);
+  }
+
+  (async function init(){
+    const listEl = document.getElementById("noticeList");
+    const catEl  = document.getElementById("noticeCategory");
+    const sortEl = document.getElementById("noticeSort");
+
+    const notices = await fetchJSON("./data/notices.json");
+
+    // 카테고리 옵션 채우기
+    const cats = Array.from(new Set(notices.map(n => n.category).filter(Boolean)));
+    cats.forEach(c => {
+      const opt = document.createElement("option");
+      opt.value = c;
+      opt.textContent = c;
+      catEl.appendChild(opt);
+    });
+
+    function render(){
+      const cat = catEl.value;
+      const sort = sortEl.value;
+
+      const filtered = notices
+        .filter(n => !cat || n.category === cat)
+        .sort((a,b) => compareByDate(a,b,sort));
+
+      listEl.innerHTML = filtered.map(renderCard).join("");
+
+      // 클릭/키보드로 상세 이동
+      listEl.querySelectorAll(".notice-card").forEach(card => {
+        const go = () => location.href = `notice.html?id=${card.dataset.id}`;
+        card.addEventListener("click", go);
+        card.addEventListener("keydown", (e) => {
+          if(e.key === "Enter" || e.key === " ") { e.preventDefault(); go(); }
+        });
+      });
+    }
+
+    catEl.addEventListener("change", render);
+    sortEl.addEventListener("change", render);
+    render();
+  })();
+</script>
+<!-- /AUTO_NOTICES_LIST_v1 -->
+</main>
+
+  <script type="module">
+    async function fetchJSON(path){
+      const res = await fetch(path, { cache: "no-store" });
+      if(!res.ok) throw new Error(`Failed to fetch ${path}: ${res.status}`);
+      return await res.json();
+    }
+
+    function escapeHTML(s){
+      return String(s).replace(/[&<>"']/g, m => ({
+        "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
+      }[m]));
+    }
+
+    const $list = document.getElementById("noticeList");
+    const $cat = document.getElementById("noticeCategory");
+    const $sort = document.getElementById("noticeSort");
+
+    let notices = [];
+
+    function render(items){
+      $list.innerHTML = items.map(n => `
+        <article class="card notice-card" data-id="${escapeHTML(n.id)}" role="button" tabindex="0">
+          <div class="meta">
+            <span class="badge">${escapeHTML(n.category || "")}</span>
+            <span class="date">${escapeHTML(n.date || "")}</span>
+          </div>
+          <h3 class="title">${escapeHTML(n.title || "")}</h3>
+          <div class="tags">
+            ${(n.tags || []).map(t => `<span class="tag">#${escapeHTML(t)}</span>`).join("")}
+          </div>
+        </article>
+      `).join("");
+
+      $list.querySelectorAll(".notice-card").forEach(card => {
+        const go = () => {
+          const id = card.getAttribute("data-id");
+          location.href = `notice.html?id=${encodeURIComponent(id)}`;
+        };
+        card.addEventListener("click", go);
+        card.addEventListener("keydown", (e) => {
+          if(e.key === "Enter" || e.key === " ") go();
+        });
+      });
+    }
+
+    function applyFilterSort(){
+      const cat = $cat.value;
+      const sort = $sort.value;
+
+      let items = [...notices];
+      if(cat !== "all") items = items.filter(n => n.category === cat);
+
+      items.sort((a,b) => {
+        const ad = new Date(a.date).getTime();
+        const bd = new Date(b.date).getTime();
+        return sort === "new" ? (bd - ad) : (ad - bd);
+      });
+
+      render(items);
+    }
+
+    function buildCategoryOptions(items){
+      const cats = Array.from(new Set(items.map(x => x.category).filter(Boolean)));
+      $cat.innerHTML = `<option value="all">전체</option>` + cats.map(c => `
+        <option value="${escapeHTML(c)}">${escapeHTML(c)}</option>
+      `).join("");
+    }
+
+    (async function init(){
+      notices = await fetchJSON("./data/notices.json");
+      buildCategoryOptions(notices);
+      applyFilterSort();
+
+      $cat.addEventListener("change", applyFilterSort);
+      $sort.addEventListener("change", applyFilterSort);
+    })();
+  </script>
+<footer class="footer">
+    <div class="container footer__inner">
+      <div>
+        <div class="footer__brand">CodeIn</div>
+        <div class="muted small">동아리 웹사이트 정적 프로토타입</div>
+      </div>
+      <div class="footer__right muted small">
+        <span id="yearText"></span> · Built with HTML/CSS/JS
+      </div>
+    </div>
+  </footer>
+</body>
+</html>
+
+
+
+
+

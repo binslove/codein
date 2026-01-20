@@ -1,0 +1,109 @@
+﻿<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>공지 작성</title>
+  <link rel="stylesheet" href="./css/style.css" />
+</head>
+<body data-page="notice-write" class="page--notice-write">
+  <a class="skip-link" href="#content">본문으로 바로가기</a>
+
+  <header class="header">
+    <div class="container header__inner">
+      <a class="brand" href="./index.html" aria-label="코드인 홈">
+        <span class="brand__mark" aria-hidden="true">⌘</span>
+        <span class="brand__name">CodeIn</span>
+      </a>
+
+      <nav class="nav" aria-label="주요 메뉴">
+        <button class="nav__toggle" id="navToggle" aria-controls="navMenu" aria-expanded="false">
+          <span class="sr-only">메뉴 열기</span>
+          ☰
+        </button>
+        <div class="nav__menu" id="navMenu">
+          <a class="nav__link" href="notices.html">공지</a>
+          <a class="nav__link" href="./boards.html">게시판</a>
+          <a class="nav__link" href="./calendar.html">캘린더</a>
+          <a class="nav__link" href="./gallery.html">갤러리</a>
+          <a class="nav__link nav__link--soon" href="./contest.html" title="추후 오픈">코딩테스트<span class="pill">준비중</span></a>
+          <a class="nav__link" href="./mypage.html">마이페이지</a>
+        </div>
+      </nav>
+
+      <div class="header__actions">
+        <button class="btn btn--ghost" id="themeToggle" type="button" aria-label="테마 전환">
+          <span class="icon" aria-hidden="true">🌙</span>
+          <span class="btn__text">테마</span>
+        </button>
+        <a data-auth="login" data-auth="login" class="btn btn--primary" href="./login.html" aria-label="로그인/가입">로그인</a>
+        <a class="btn" href="#" data-auth="logout" id="logoutBtn">로그아웃</a>
+      </div>
+    </div>
+  </header>
+
+  <main id="content" class="section">
+    <div class="container">
+      <div class="section__head">
+        <div>
+          <h1 class="section__title">공지 작성</h1>
+</div>
+      </div>
+
+      <section class="card card--padded" data-min-role="2">
+        <form id="noticeWriteForm" class="form">
+          <label class="label" for="nwTitle">제목</label>
+          <input id="nwTitle" class="input" required maxlength="80" />
+
+          <label class="label" for="nwCategory" style="margin-top:10px;">카테고리</label>
+          <input id="nwCategory" class="input" maxlength="30" placeholder="예: 공지/학사/시스템/행사/안내" />
+
+          <label class="label" for="nwTags" style="margin-top:10px;">태그 (쉼표로 구분)</label>
+          <input id="nwTags" class="input" placeholder="예: OT,필참,오프라인" />
+
+          <label class="label" for="nwContent" style="margin-top:10px;">내용</label>
+          <textarea id="nwContent" class="input" required rows="10"></textarea>
+
+          <div style="display:flex; gap:10px; margin-top:14px;">
+            <button class="btn" type="submit">등록</button>
+            <a class="btn btn--ghost" href="./notices.html">목록으로</a>
+          </div>
+        </form>
+      </section>
+
+      <section class="card card--padded" data-min-role="0" style="margin-top:12px;">
+<a data-auth="login" class="btn btn--primary" href="./login.html">로그인</a>
+      </section>
+    </div>
+  </main>
+
+  <footer class="footer">
+    <div class="container footer__inner">
+      <div class="footer__left">
+        <div class="footer__brand">CodeIn</div>
+        <div class="muted small">동아리 웹사이트 정적 프로토타입</div>
+      </div>
+      <div class="footer__right muted small">
+        <span id="yearText"></span> · Built with HTML/CSS/JS
+      </div>
+    </div>
+  </footer>
+
+  <script src="./js/app.js?v=20260119-removeAdminText" defer></script>
+</body>
+</html>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

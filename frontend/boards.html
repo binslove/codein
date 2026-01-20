@@ -1,0 +1,72 @@
+﻿<!doctype html>
+<html lang="ko">
+<head>
+
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#0b1220" />
+  <meta name="description" content="동아리 공지/게시판/캘린더/갤러리를 한 곳에서. (정적 프로토타입)" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./css/style.css" />
+
+  <title>코드인(CodeIn) | 게시판</title>
+</head>
+<body data-page="boards">
+  <a class="skip-link" href="#content">본문으로 바로가기</a>
+
+  <header class="header">
+    
+        <div id="boardsStub" data-min-role="1">
+<div id="boardWriteGate" class="card card--padded" style="margin-top:16px;">
+  <div style="font-weight:800; font-size:16px;">글 작성은 로그인 후 가능합니다.</div>
+  <p class="muted" style="margin-top:8px;">회원(MEMBER)부터 작성할 수 있어요.</p>
+  <a class="btn" href="./login.html?next=boards.html" style="margin-top:10px; display:inline-flex;">로그인 하러가기</a>
+</div>
+
+<form id="boardWriteForm" class="card card--padded" style="margin-top:16px; display:none;">
+  <div style="font-weight:800; font-size:16px;">새 글 작성</div>
+  <div style="margin-top:12px; display:grid; gap:10px;">
+    <input name="title" class="input" placeholder="제목" maxlength="80" />
+    <textarea name="content" class="input" placeholder="내용" rows="6"></textarea>
+    <button class="btn" type="submit">등록</button>
+  </div>
+</form>
+
+<div id="boardPostList" style="margin-top:16px; display:grid; gap:12px;"></div>
+
+      </div>
+    </section>
+
+  </main>
+
+  <footer class="footer">
+    <div class="container footer__inner">
+      <div>
+        <div class="footer__brand">CodeIn</div>
+        <div class="muted small">동아리 웹사이트 정적 프로토타입</div>
+      </div>
+      <div class="footer__right muted small">
+        <span id="yearText"></span> · Built with HTML/CSS/JS
+      </div>
+    </div>
+  </footer>
+
+  <script src="./js/app.js?v=20260119-clean" defer></script>
+</body>
+</html>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
